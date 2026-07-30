@@ -14,7 +14,9 @@ original uses to read data out of the game's SqPack archives:
   (tags are structurally skipped, matching the original's "good string for
   most queries" behaviour).
 - **Textures** — decoding `*.tex` image files (A8R8G8B8, A1R5G5B5, A4R4G4B4,
-  R3G3B2, A16R16G16B16F, and DXT1/3/5) to PNG.
+  R3G3B2, A16R16G16B16F, DXT1/3/5, and BC7) to PNG. BC7 — used by icons
+  re-encoded in later game patches, and not handled by the original .NET
+  library — is decoded via Pillow's native DDS reader.
 
 ## Scope
 

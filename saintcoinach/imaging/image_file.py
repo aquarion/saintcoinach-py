@@ -34,6 +34,10 @@ class ImageFormat(IntEnum):
     DXT3 = 0x3430
     DXT5 = 0x3431
 
+    # BC7 (DXGI_FORMAT_BC7). Not part of the original SaintCoinach enum; FFXIV
+    # re-encoded a range of icons to BC7 in later patches.
+    BC7 = 0x6432
+
 
 class ImageHeader:
     """The 0x50-byte header at the start of an image file's payload."""
@@ -49,9 +53,9 @@ class ImageHeader:
             raise EOFError("Unexpected end of stream reading image header.")
         self.width = struct.unpack_from("<h", self.buffer, self._WIDTH_OFFSET)[0]
         self.height = struct.unpack_from("<h", self.buffer, self._HEIGHT_OFFSET)[0]
-        raw_format = struct.unpack_from("<h", self.buffer, self._FORMAT_OFFSET)[0]
+        self.raw_format = struct.unpack_from("<H", self.buffer, self._FORMAT_OFFSET)[0]
         try:
-            self.format = ImageFormat(raw_format)
+            self.format = ImageFormat(self.raw_format)
         except ValueError:
             self.format = ImageFormat.UNKNOWN
         self.end_of_header = stream.tell()
@@ -113,14 +117,24 @@ class ImageFile(SqPackFile):
 
     def get_bgra(self) -> bytes:
         """Return the image as a width*height*4 BGRA byte buffer."""
-        return convert_to_bgra(self.get_data(), self.format, self.width, self.height)
+        try:
+            return convert_to_bgra(
+                self.get_data(), self.format, self.width, self.height
+            )
+        except NotImplementedError:
+            raise NotImplementedError(
+                f"Unsupported texture format 0x{self.image_header.raw_format:04x}"
+                f" ({self.format.name}) for {self.path or 'image'}"
+            ) from None
 
     def get_image(self):
         """Return a Pillow ``Image`` (requires Pillow to be installed)."""
         from PIL import Image
 
         bgra = self.get_bgra()
-        return Image.frombytes("RGBA", (self.width, self.height), bytes(bgra), "raw", "BGRA")
+        return Image.frombytes(
+            "RGBA", (self.width, self.height), bytes(bgra), "raw", "BGRA"
+        )
 
 
 # -- format conversion --------------------------------------------------------
@@ -162,7 +176,9 @@ def _process_r3g3b2(src: bytes, dst: bytearray, width: int, height: int) -> None
         dst[i * 4 + 3] = 0xFF
 
 
-def _process_a16r16g16b16_float(src: bytes, dst: bytearray, width: int, height: int) -> None:
+def _process_a16r16g16b16_float(
+    src: bytes, dst: bytearray, width: int, height: int
+) -> None:
     for i in range(width * height):
         src_off = i * 4 * 2
         dst_off = i * 4
@@ -180,6 +196,51 @@ def _process_dxt(flags: squish.SquishOptions):
     return proc
 
 
+def _build_bc7_dds(data: bytes, width: int, height: int) -> bytes:
+    """Wrap a BC7 payload in a minimal DX10 DDS container for Pillow."""
+    blocks = ((width + 3) // 4) * ((height + 3) // 4)
+    pitch = blocks * 16  # BC7 = 16 bytes per 4x4 block
+    # DDS_HEADER: size, flags (CAPS|HEIGHT|WIDTH|PIXELFORMAT|LINEARSIZE),
+    # height, width, pitchOrLinearSize, depth, mipMapCount, then 11 reserved.
+    header = (
+        struct.pack(
+            "<7I", 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x80000, height, width, pitch, 0, 1
+        )
+        + b"\x00" * 44
+    )
+    # DDS_PIXELFORMAT: size, flags=FOURCC, fourCC="DX10", then 5 unused masks.
+    pixelformat = struct.pack("<2I4s5I", 32, 0x4, b"DX10", 0, 0, 0, 0, 0)
+    # dwCaps=TEXTURE, then caps2/3/4 + reserved.
+    caps = struct.pack("<5I", 0x1000, 0, 0, 0, 0)
+    # DDS_HEADER_DXT10: dxgiFormat=98 (BC7_UNORM), dimension=3 (TEXTURE2D),
+    # miscFlag=0, arraySize=1, miscFlags2=0.
+    dx10 = struct.pack("<5I", 98, 3, 0, 1, 0)
+    return b"DDS " + header + pixelformat + caps + dx10 + bytes(data)
+
+
+def _process_bc7(src: bytes, dst: bytearray, width: int, height: int) -> None:
+    # BC7 has 8 modes and is impractical to decode quickly in pure Python;
+    # Pillow's DDS reader has a fast native BC7 decoder, and Pillow is already
+    # required for image output, so decode through it.
+    import io
+
+    try:
+        from PIL import Image
+    except ImportError as exc:  # pragma: no cover
+        raise NotImplementedError(
+            "BC7 texture decoding requires Pillow. Install the 'images' extra."
+        ) from exc
+
+    dds = _build_bc7_dds(src, width, height)
+    image = Image.open(io.BytesIO(dds)).convert("RGBA")
+    rgba = image.tobytes()  # R, G, B, A
+    # Match the BGRA byte order the rest of the pipeline produces.
+    dst[0::4] = rgba[2::4]  # B
+    dst[1::4] = rgba[1::4]  # G
+    dst[2::4] = rgba[0::4]  # R
+    dst[3::4] = rgba[3::4]  # A
+
+
 _PROCESSORS = {
     ImageFormat.A16R16G16B16_FLOAT: _process_a16r16g16b16_float,
     ImageFormat.A1R5G5B5: _process_a1r5g5b5,
@@ -193,10 +254,13 @@ _PROCESSORS = {
     ImageFormat.DXT3: _process_dxt(squish.SquishOptions.DXT3),
     ImageFormat.DXT5: _process_dxt(squish.SquishOptions.DXT5),
     ImageFormat.R3G3B2: _process_r3g3b2,
+    ImageFormat.BC7: _process_bc7,
 }
 
 
-def convert_to_bgra(src: bytes, image_format: ImageFormat, width: int, height: int) -> bytes:
+def convert_to_bgra(
+    src: bytes, image_format: ImageFormat, width: int, height: int
+) -> bytes:
     proc = _PROCESSORS.get(image_format)
     if proc is None:
         raise NotImplementedError(f"Unsupported image format {image_format!r}")

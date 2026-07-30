@@ -12,8 +12,9 @@ license = { text = "WTFPL" }
 dependencies = []
 
 [project.optional-dependencies]
-# Image/PNG export needs Pillow; pure data reading does not.
-images = ["Pillow>=9.0"]
+# Image/PNG export needs Pillow; pure data reading does not. Pillow also
+# provides the native BC7 decoder used for BC7 textures (available since 9.2).
+images = ["Pillow>=9.2"]
 
 [project.scripts]
 saintcoinach = "saintcoinach.cli:main"

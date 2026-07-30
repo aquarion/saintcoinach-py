@@ -89,7 +89,7 @@ def test_convert_a8r8g8b8_is_passthrough():
 def test_dxt1_solid_block_decodes_to_constant_colour():
     # Build a DXT1 block whose two endpoints are identical (pure red in 565),
     # so every pixel decodes to that colour.
-    red565 = (31 << 11)  # r=31, g=0, b=0
+    red565 = 31 << 11  # r=31, g=0, b=0
     block = struct.pack("<HH", red565, red565) + bytes([0, 0, 0, 0])
     out = squish.decompress_image(block, 4, 4, squish.SquishOptions.DXT1)
     # Output is BGRA; red endpoint -> B=0, G=0, R=255, A=255.
@@ -113,8 +113,29 @@ def test_processors_cover_all_declared_formats():
         ImageFormat.DXT3,
         ImageFormat.DXT5,
         ImageFormat.R3G3B2,
+        ImageFormat.BC7,
     }
     assert supported <= set(image_file._PROCESSORS)
+
+
+def test_bc7_decodes_via_pillow():
+    # BC7 goes through Pillow's DDS decoder; skip cleanly if Pillow is absent.
+    try:
+        from PIL import Image
+    except ImportError:
+        return
+
+    # 8x8 BC7 texture: four 16-byte blocks (0x40 low bit -> mode 0).
+    src = b"".join(
+        bytes([0x40] + [(0x11 * (i + j)) & 0xFF for j in range(15)]) for i in range(4)
+    )
+    out = convert_to_bgra(src, ImageFormat.BC7, 8, 8)
+    assert len(out) == 8 * 8 * 4
+
+    # Reconstructing an image from the BGRA buffer must round-trip.
+    img = Image.frombytes("RGBA", (8, 8), bytes(out), "raw", "BGRA")
+    assert img.size == (8, 8)
+    assert len(img.getpixel((0, 0))) == 4
 
 
 if __name__ == "__main__":
