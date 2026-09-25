@@ -98,6 +98,35 @@ def test_dxt1_solid_block_decodes_to_constant_colour():
         assert (b, g, r, a) == (0, 0, 255, 255)
 
 
+def test_dxt_numpy_path_matches_pure_python_reference():
+    # The numpy-accelerated decoder must byte-for-byte match the reference
+    # per-pixel implementation, including non-4-aligned dimensions (where
+    # trailing block rows/columns get cropped) and DXT1's punch-through
+    # alpha mode (endpoint0 <= endpoint1).
+    if squish.np is None:
+        return  # numpy not installed; nothing to compare against.
+
+    import random
+
+    rng = random.Random(1234)
+    sizes = [(4, 4), (8, 8), (6, 6), (5, 9), (12, 4), (1, 1), (32, 16)]
+    for flags in (
+        squish.SquishOptions.DXT1,
+        squish.SquishOptions.DXT3,
+        squish.SquishOptions.DXT5,
+    ):
+        bytes_per_block = 8 if flags & squish.SquishOptions.DXT1 else 16
+        for width, height in sizes:
+            blocks_x = (width + 3) // 4
+            blocks_y = (height + 3) // 4
+            data = bytes(
+                rng.randrange(256) for _ in range(blocks_x * blocks_y * bytes_per_block)
+            )
+            reference = squish._decompress_image_python(data, width, height, flags)
+            accelerated = squish._decompress_image_numpy(data, width, height, flags)
+            assert bytes(reference) == bytes(accelerated), (flags, width, height)
+
+
 def test_processors_cover_all_declared_formats():
     # Every format the original supports must have a processor here.
     supported = {

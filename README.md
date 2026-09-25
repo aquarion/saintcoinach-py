@@ -16,7 +16,10 @@ original uses to read data out of the game's SqPack archives:
 - **Textures** — decoding `*.tex` image files (A8R8G8B8, A1R5G5B5, A4R4G4B4,
   R3G3B2, A16R16G16B16F, DXT1/3/5, and BC7) to PNG. BC7 — used by icons
   re-encoded in later game patches, and not handled by the original .NET
-  library — is decoded via Pillow's native DDS reader.
+  library — is decoded via Pillow's native DDS reader. DXT1/3/5 decode uses a
+  vectorised numpy implementation when numpy is installed (~15-20x faster,
+  useful for bulk exports), falling back to a pure-Python per-pixel decoder
+  otherwise.
 
 ## Scope
 
@@ -31,11 +34,13 @@ named columns.
 
 ```bash
 pip install -e .          # core data reading
-pip install -e '.[images]' # + Pillow, needed for PNG export
+pip install -e '.[images]' # + Pillow (PNG export) and numpy (faster DXT decode)
 ```
 
-Only Pillow is required, and only for image/PNG output; pure data reading has
-no third-party dependencies.
+Pure data reading has no third-party dependencies. Pillow is required for
+image/PNG output; numpy is optional on top of that and only speeds up
+DXT1/3/5 decode — bulk texture export (e.g. exporting every icon) is
+meaningfully faster with it, but single-icon export is fine without it.
 
 ## CLI
 

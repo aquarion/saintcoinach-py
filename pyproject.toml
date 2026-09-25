@@ -14,7 +14,9 @@ dependencies = []
 [project.optional-dependencies]
 # Image/PNG export needs Pillow; pure data reading does not. Pillow also
 # provides the native BC7 decoder used for BC7 textures (available since 9.2).
-images = ["Pillow>=9.2"]
+# numpy is optional and only accelerates DXT1/3/5 decode (~15-20x); without it,
+# decoding falls back to a pure-Python per-pixel implementation.
+images = ["Pillow>=9.2", "numpy"]
 
 [project.scripts]
 saintcoinach = "saintcoinach.cli:main"
