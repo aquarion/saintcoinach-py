@@ -54,7 +54,14 @@ _REQUEST_TIMEOUT = 30
 
 # Errors that mean "the network/upstream didn't cooperate" -- anything else
 # (a bug in our own parsing/flattening) should still raise.
-_FETCH_ERRORS = (URLError, OSError, zipfile.BadZipFile, yaml.YAMLError, KeyError)
+_FETCH_ERRORS = (
+    URLError,
+    OSError,
+    zipfile.BadZipFile,
+    yaml.YAMLError,
+    json.JSONDecodeError,
+    KeyError,
+)
 
 
 @dataclass(frozen=True)
@@ -167,6 +174,19 @@ def _download_and_flatten(branch: str) -> dict[str, list[str]]:
     return _flatten_zip_bytes(_download_branch_zip(branch))
 
 
+def _read_cache(cache_path: Path) -> tuple[dict[str, list[str]], str] | None:
+    if not cache_path.exists():
+        return None
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        return payload["sheets"], payload["source"]
+    except (json.JSONDecodeError, KeyError):
+        # Corrupt or truncated cache file -- remove it so this (and every
+        # future) call re-fetches instead of failing on it forever.
+        cache_path.unlink(missing_ok=True)
+        return None
+
+
 def _fetch_definitions(game_version: str | None) -> tuple[dict[str, list[str]], str] | None:
     # Cached by the *requested* version (not the resolved branch): that way
     # repeat use against the same game install never re-lists branches over
@@ -176,9 +196,9 @@ def _fetch_definitions(game_version: str | None) -> tuple[dict[str, list[str]], 
     cache_key = re.sub(r"[^A-Za-z0-9.-]", "_", game_version or "latest")
     cache_path = _cache_dir() / f"{cache_key}.json"
     try:
-        if cache_path.exists():
-            payload = json.loads(cache_path.read_text(encoding="utf-8"))
-            return payload["sheets"], payload["source"]
+        cached = _read_cache(cache_path)
+        if cached is not None:
+            return cached
 
         branches = [] if game_version is None else _list_branches()
         branch = _resolve_branch(game_version, branches)

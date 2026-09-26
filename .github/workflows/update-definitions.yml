@@ -26,8 +26,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install PyYAML
-        run: pip install PyYAML
+      - name: Install package
+        # The generator imports saintcoinach.ex, which eagerly imports
+        # saintcoinach.ex.definition -- that needs the package's own runtime
+        # dependencies (platformdirs), not just PyYAML for reading the
+        # upstream YAML.
+        run: pip install -e .
 
       - name: Clone EXDSchema (latest branch)
         run: git clone --depth 1 --branch latest https://github.com/xivdev/EXDSchema /tmp/exdschema

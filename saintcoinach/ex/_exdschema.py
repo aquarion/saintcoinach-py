@@ -8,9 +8,11 @@ columns each. This module turns that declarative shape into the flat,
 ordered list of column names needed to match the raw column layout read
 from a sheet's ``*.exh`` header.
 
-Used by ``scripts/vendor_definitions.py`` to build the vendored snapshot in
-``saintcoinach/ex/definitions/sheets.json``; not needed at runtime, since
-that snapshot is already flat. Kept importable for its own tests.
+Used both by ``scripts/vendor_definitions.py``, to build the bundled
+fallback snapshot in ``saintcoinach/ex/definitions/sheets.json`` (already
+flat, so it needs no further flattening once loaded), and by
+``saintcoinach.ex.definition`` at runtime, to flatten schema fetched fresh
+from EXDSchema for the game version being read.
 """
 
 from __future__ import annotations

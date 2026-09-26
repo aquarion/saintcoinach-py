@@ -9,6 +9,7 @@ mocked out -- none of this hits GitHub.
 from __future__ import annotations
 
 import io
+import json
 import os
 import sys
 import zipfile
@@ -291,6 +292,48 @@ def test_fetch_definitions_returns_none_on_network_failure(tmp_path):
         patch.object(definition, "_list_branches", side_effect=OSError("no network")),
     ):
         assert definition._fetch_definitions("2025.07.30.0000.0000") is None
+
+
+def test_fetch_definitions_repairs_a_corrupt_cache_file(tmp_path):
+    # A truncated/corrupt cache file (partial write, disk issue, whatever)
+    # must not permanently break this version -- it should be discarded and
+    # re-fetched, not raise past load_definitions()'s fallback.
+    cache_path = tmp_path / "2025.07.30.0000.0000.json"
+    cache_path.write_text("{not valid json", encoding="utf-8")
+
+    zip_bytes = _make_zip(
+        "EXDSchema-ver-2025.07.30.0000.0000",
+        {"Item.yml": "name: Item\nfields:\n  - name: Name\n"},
+    )
+    with (
+        patch.object(definition, "_cache_dir", return_value=tmp_path),
+        patch.object(definition, "_list_branches", return_value=_BRANCHES),
+        patch.object(definition, "_download_branch_zip", return_value=zip_bytes),
+    ):
+        result = definition._fetch_definitions("2025.07.30.0000.0000")
+
+    assert result == ({"Item": ["Name"]}, "exdschema:ver/2025.07.30.0000.0000")
+    # Repaired: reading it back now succeeds as valid JSON.
+    assert json.loads(cache_path.read_text(encoding="utf-8"))["sheets"] == {"Item": ["Name"]}
+
+
+def test_read_cache_missing_keys_treated_as_corrupt(tmp_path):
+    cache_path = tmp_path / "whatever.json"
+    cache_path.write_text(json.dumps({"unexpected": "shape"}), encoding="utf-8")
+
+    assert definition._read_cache(cache_path) is None
+    assert not cache_path.exists()
+
+
+def test_load_definitions_falls_back_when_api_response_is_not_json(tmp_path):
+    # e.g. a captive portal or misconfigured proxy returning an HTML error
+    # page instead of GitHub's API response.
+    with (
+        patch.object(definition, "_cache_dir", return_value=tmp_path),
+        patch.object(definition, "_list_branches", side_effect=json.JSONDecodeError("bad", "doc", 0)),
+    ):
+        d = definition.load_definitions("2025.07.30.0000.0000")
+    assert d.source == "bundled fallback"
 
 
 def test_bundled_fallback_is_large_and_has_no_duplicate_columns():
