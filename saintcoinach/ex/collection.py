@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io as _io
 
+from .definition import Definitions, load_definitions
 from .header import Header
 from .language import Language
 from .sheet import DataSheet, MultiSheet
@@ -15,14 +16,30 @@ __all__ = ["ExCollection"]
 
 
 class ExCollection:
-    def __init__(self, packs):
+    def __init__(self, packs, game_version: str | None = None):
         self.packs = packs
+        self.game_version = game_version
         self.active_language = Language.ENGLISH
         self._sheet_identifiers: dict[int, str] = {}
         self._available_sheets: set[str] = set()
         self._headers: dict[str, Header] = {}
         self._sheets: dict[str, object] = {}
+        self._definitions: Definitions | None = None
         self._build_index()
+
+    @property
+    def definitions(self) -> Definitions:
+        """Column-name definitions, resolved on first use.
+
+        Deliberately not resolved eagerly in ``__init__`` -- that would mean
+        every ``ExCollection`` (so every ``GameData``) construction could
+        trigger a network fetch, even for callers who only ever use
+        index-based row access. It's resolved instead the first time some
+        row's column is looked up by name (see ``Header.get_column_index``).
+        """
+        if self._definitions is None:
+            self._definitions = load_definitions(self.game_version)
+        return self._definitions
 
     def _build_index(self) -> None:
         root = self.packs.get_file("exd/root.exl")

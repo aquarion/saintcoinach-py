@@ -15,6 +15,14 @@ from .io.pack import PackCollection
 __all__ = ["GameData"]
 
 
+def _first_matching(candidates: list[str], matches) -> str | None:
+    """The first of ``candidates`` satisfying ``matches``, or ``None``."""
+    for candidate in candidates:
+        if matches(candidate):
+            return candidate
+    return None
+
+
 def _resolve_sqpack(path: str) -> str:
     """Find the ``sqpack`` directory given a game install or sqpack path."""
     candidates = [
@@ -22,13 +30,13 @@ def _resolve_sqpack(path: str) -> str:
         os.path.join(path, "sqpack"),
         os.path.join(path, "game", "sqpack"),
     ]
-    for candidate in candidates:
-        if os.path.isdir(os.path.join(candidate, "ffxiv")):
-            return candidate
-    raise FileNotFoundError(
-        f"Could not locate a 'sqpack' directory under '{path}'. "
-        "Pass the game install directory or the sqpack directory itself."
-    )
+    found = _first_matching(candidates, lambda c: os.path.isdir(os.path.join(c, "ffxiv")))
+    if found is None:
+        raise FileNotFoundError(
+            f"Could not locate a 'sqpack' directory under '{path}'. "
+            "Pass the game install directory or the sqpack directory itself."
+        )
+    return found
 
 
 class GameData:
@@ -38,7 +46,7 @@ class GameData:
         self.game_directory = game_directory
         self.sqpack_directory = _resolve_sqpack(game_directory)
         self.packs = PackCollection(self.sqpack_directory)
-        self.game_data = ExCollection(self.packs)
+        self.game_data = ExCollection(self.packs, game_version=self.game_version)
         self.game_data.active_language = language
 
     @property
@@ -54,12 +62,22 @@ class GameData:
 
     @property
     def game_version(self) -> str | None:
-        for rel in ("game/ffxivgame.ver", "ffxivgame.ver"):
-            path = os.path.join(self.game_directory, rel)
-            if os.path.exists(path):
-                with open(path, "r", encoding="ascii", errors="replace") as fh:
-                    return fh.read().strip()
-        return None
+        # ffxivgame.ver lives next to the *real* sqpack directory (a level
+        # up from it), which is always correctly resolved regardless of
+        # which of the two documented inputs was given -- the install root,
+        # or the sqpack directory itself. Checking only under the raw input
+        # (as this used to) silently returns None for the latter, since
+        # ffxivgame.ver isn't inside the sqpack directory itself.
+        candidates = [
+            os.path.join(os.path.dirname(self.sqpack_directory), "ffxivgame.ver"),
+            os.path.join(self.game_directory, "game", "ffxivgame.ver"),
+            os.path.join(self.game_directory, "ffxivgame.ver"),
+        ]
+        found = _first_matching(candidates, os.path.exists)
+        if found is None:
+            return None
+        with open(found, "r", encoding="ascii", errors="replace") as fh:
+            return fh.read().strip()
 
     def close(self) -> None:
         self.packs.close()
