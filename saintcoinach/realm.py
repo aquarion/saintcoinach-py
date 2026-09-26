@@ -54,8 +54,18 @@ class GameData:
 
     @property
     def game_version(self) -> str | None:
-        for rel in ("game/ffxivgame.ver", "ffxivgame.ver"):
-            path = os.path.join(self.game_directory, rel)
+        # ffxivgame.ver lives next to the *real* sqpack directory (a level
+        # up from it), which is always correctly resolved regardless of
+        # which of the two documented inputs was given -- the install root,
+        # or the sqpack directory itself. Checking only under the raw input
+        # (as this used to) silently returns None for the latter, since
+        # ffxivgame.ver isn't inside the sqpack directory itself.
+        candidates = [
+            os.path.join(os.path.dirname(self.sqpack_directory), "ffxivgame.ver"),
+            os.path.join(self.game_directory, "game", "ffxivgame.ver"),
+            os.path.join(self.game_directory, "ffxivgame.ver"),
+        ]
+        for path in candidates:
             if os.path.exists(path):
                 with open(path, "r", encoding="ascii", errors="replace") as fh:
                     return fh.read().strip()
