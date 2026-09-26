@@ -38,7 +38,7 @@ class GameData:
         self.game_directory = game_directory
         self.sqpack_directory = _resolve_sqpack(game_directory)
         self.packs = PackCollection(self.sqpack_directory)
-        self.game_data = ExCollection(self.packs)
+        self.game_data = ExCollection(self.packs, game_version=self.game_version)
         self.game_data.active_language = language
 
     @property
