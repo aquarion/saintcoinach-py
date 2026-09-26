@@ -15,6 +15,14 @@ from .io.pack import PackCollection
 __all__ = ["GameData"]
 
 
+def _first_matching(candidates: list[str], matches) -> str | None:
+    """The first of ``candidates`` satisfying ``matches``, or ``None``."""
+    for candidate in candidates:
+        if matches(candidate):
+            return candidate
+    return None
+
+
 def _resolve_sqpack(path: str) -> str:
     """Find the ``sqpack`` directory given a game install or sqpack path."""
     candidates = [
@@ -22,13 +30,13 @@ def _resolve_sqpack(path: str) -> str:
         os.path.join(path, "sqpack"),
         os.path.join(path, "game", "sqpack"),
     ]
-    for candidate in candidates:
-        if os.path.isdir(os.path.join(candidate, "ffxiv")):
-            return candidate
-    raise FileNotFoundError(
-        f"Could not locate a 'sqpack' directory under '{path}'. "
-        "Pass the game install directory or the sqpack directory itself."
-    )
+    found = _first_matching(candidates, lambda c: os.path.isdir(os.path.join(c, "ffxiv")))
+    if found is None:
+        raise FileNotFoundError(
+            f"Could not locate a 'sqpack' directory under '{path}'. "
+            "Pass the game install directory or the sqpack directory itself."
+        )
+    return found
 
 
 class GameData:
@@ -65,11 +73,11 @@ class GameData:
             os.path.join(self.game_directory, "game", "ffxivgame.ver"),
             os.path.join(self.game_directory, "ffxivgame.ver"),
         ]
-        for path in candidates:
-            if os.path.exists(path):
-                with open(path, "r", encoding="ascii", errors="replace") as fh:
-                    return fh.read().strip()
-        return None
+        found = _first_matching(candidates, os.path.exists)
+        if found is None:
+            return None
+        with open(found, "r", encoding="ascii", errors="replace") as fh:
+            return fh.read().strip()
 
     def close(self) -> None:
         self.packs.close()
