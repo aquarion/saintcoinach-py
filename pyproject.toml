@@ -9,7 +9,10 @@ description = "Python port of the SaintCoinach FFXIV data-extraction library (da
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "WTFPL" }
-dependencies = []
+# PyYAML parses sheet definitions fetched from EXDSchema (or the bundled
+# offline fallback) at runtime; platformdirs locates the per-OS cache
+# directory those fetched definitions are stored in.
+dependencies = ["PyYAML>=6", "platformdirs>=3"]
 
 [project.optional-dependencies]
 # Image/PNG export needs Pillow; pure data reading does not. Pillow also
@@ -24,3 +27,6 @@ saintcoinach = "saintcoinach.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["saintcoinach*"]
+
+[tool.setuptools.package-data]
+"saintcoinach.ex" = ["definitions/*.json"]
