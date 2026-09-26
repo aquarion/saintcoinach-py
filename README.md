@@ -25,10 +25,14 @@ original uses to read data out of the game's SqPack archives:
 
 This port targets the **data + CLI export** workflow. It intentionally does
 **not** include the WPF/DirectX 3D model viewer (`SaintCoinach.Graphics.Viewer`
-/ `Godbert`), nor the relational **definition** layer
-(`SaintCoinach.History.zip`) that maps columns to friendly names — so sheet
-export is by **column index** (equivalent to the original's `rawexd`), not
-named columns.
+/ `Godbert`).
+
+Column *names* — vendored from [EXDSchema](https://github.com/xivdev/EXDSchema),
+the community successor to the original's `SaintCoinach.History.zip` — can be
+loaded via `saintcoinach.ex.get_definition("Item")`, but are not yet wired into
+row/sheet access. Sheet export is therefore still by **column index**
+(equivalent to the original's `rawexd`), not named columns; that's tracked
+separately.
 
 ## Install
 

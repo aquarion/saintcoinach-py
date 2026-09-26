@@ -3,9 +3,9 @@
 Port of ``SaintCoinach.Ex.DataSheet``, ``PartialDataSheet``, ``MultiSheet`` and
 the variant 1/2 row types.  EX data is big-endian.
 
-Columns are exposed by index only; the human-readable column names live in the
-relational/definition layer (``SaintCoinach.History.zip``), which is not part of
-this port.  This mirrors the original ``rawexd`` export.
+Columns are exposed by index only. Column names are now loadable via
+``saintcoinach.ex.definition``, but they are not yet wired into row access
+here -- this module still mirrors the original ``rawexd`` export.
 """
 
 from __future__ import annotations
