@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
-"""Vendor a pinned snapshot of EXDSchema into the package's sheet definitions.
+"""Refresh the bundled offline-fallback sheet definitions.
 
-`EXDSchema <https://github.com/xivdev/EXDSchema>`_ is the actively-maintained
-community source of FFXIV sheet column names/structure (superseding the old
-``SaintCoinach.History.zip``). Its ``latest`` branch holds one
-``<SheetName>.yml`` file per sheet. This script flattens each of those into
-an ordered list of column names (see ``saintcoinach/ex/_exdschema.py``) and
-writes the result to ``saintcoinach/ex/definitions/sheets.json``, which is
-what the library actually loads at runtime.
-
-To refresh the snapshot against a newer game patch::
+At runtime, ``saintcoinach.ex.definition.load_definitions()`` fetches sheet
+definitions from `EXDSchema <https://github.com/xivdev/EXDSchema>`_ for the
+game version being read. ``saintcoinach/ex/definitions/sheets.json`` is only
+the *fallback* used when that fetch fails (no network, GitHub unreachable):
+a snapshot of EXDSchema's ``latest`` branch as of whenever this script was
+last run. This script (re)generates that snapshot; it's run on a monthly
+schedule by ``.github/workflows/update-definitions.yml`` so the fallback
+doesn't drift too far from the current game version, but can also be run by
+hand:
 
     git clone --branch latest https://github.com/xivdev/EXDSchema /tmp/exdschema
     python scripts/vendor_definitions.py /tmp/exdschema
 
-Requires PyYAML (``pip install PyYAML``) to read the upstream YAML; this is
-a tool-only dependency for running this script, not a runtime dependency of
-the library, which only ever reads the generated JSON.
+It flattens each of EXDSchema's per-sheet ``<SheetName>.yml`` files into an
+ordered list of column names (see ``saintcoinach/ex/_exdschema.py``, which
+is also used to flatten definitions fetched at runtime) and writes the
+result to ``saintcoinach/ex/definitions/sheets.json``.
+
+Requires PyYAML (``pip install PyYAML``) to read the upstream YAML.
 """
 
 from __future__ import annotations

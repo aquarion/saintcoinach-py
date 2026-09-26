@@ -27,12 +27,19 @@ This port targets the **data + CLI export** workflow. It intentionally does
 **not** include the WPF/DirectX 3D model viewer (`SaintCoinach.Graphics.Viewer`
 / `Godbert`).
 
-Column *names* — vendored from [EXDSchema](https://github.com/xivdev/EXDSchema),
+Column *names* — sourced from [EXDSchema](https://github.com/xivdev/EXDSchema),
 the community successor to the original's `SaintCoinach.History.zip` — can be
-loaded via `saintcoinach.ex.get_definition("Item")`, but are not yet wired into
-row/sheet access. Sheet export is therefore still by **column index**
-(equivalent to the original's `rawexd`), not named columns; that's tracked
-separately.
+loaded via `saintcoinach.ex.load_definitions(game_version)`, but are not yet
+wired into row/sheet access. Sheet export is therefore still by **column
+index** (equivalent to the original's `rawexd`), not named columns; that's
+tracked separately.
+
+`load_definitions` resolves the schema matching the given game version by
+fetching the corresponding branch from EXDSchema (cached under the platform
+user data directory, so it's only fetched once per version) rather than
+trusting a single frozen snapshot that could drift from a newer game patch.
+If fetching fails — no network, GitHub unreachable — it falls back to a small
+bundled snapshot, refreshed monthly by CI (`.github/workflows/update-definitions.yml`).
 
 ## Install
 
@@ -41,10 +48,12 @@ pip install -e .          # core data reading
 pip install -e '.[images]' # + Pillow (PNG export) and numpy (faster DXT decode)
 ```
 
-Pure data reading has no third-party dependencies. Pillow is required for
-image/PNG output; numpy is optional on top of that and only speeds up
-DXT1/3/5 decode — bulk texture export (e.g. exporting every icon) is
-meaningfully faster with it, but single-icon export is fine without it.
+Core data reading depends on `PyYAML` (parses fetched/bundled sheet
+definitions) and `platformdirs` (locates the per-OS cache directory for
+fetched definitions). Pillow is required for image/PNG output; numpy is
+optional on top of that and only speeds up DXT1/3/5 decode — bulk texture
+export (e.g. exporting every icon) is meaningfully faster with it, but
+single-icon export is fine without it.
 
 ## CLI
 

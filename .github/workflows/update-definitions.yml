@@ -1,0 +1,53 @@
+name: Update bundled sheet definitions
+
+# Refreshes saintcoinach/ex/definitions/sheets.json -- the offline fallback
+# used when saintcoinach.ex.definition.load_definitions() can't reach
+# EXDSchema at runtime (see scripts/vendor_definitions.py). Runs monthly so
+# the fallback doesn't drift too far behind the current game version, since
+# most users will never trip the fallback path in a given month.
+
+on:
+  schedule:
+    - cron: "17 6 1 * *" # 06:17 UTC on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-definitions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install PyYAML
+
+      - name: Clone EXDSchema (latest branch)
+        run: git clone --depth 1 --branch latest https://github.com/xivdev/EXDSchema /tmp/exdschema
+
+      - name: Regenerate vendored snapshot
+        run: python scripts/vendor_definitions.py /tmp/exdschema
+
+      - name: Open a PR if the snapshot changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "Update bundled sheet definitions snapshot"
+          title: "Update bundled sheet definitions snapshot"
+          body: |
+            Automated monthly refresh of the offline-fallback sheet
+            definitions (`saintcoinach/ex/definitions/sheets.json`) from
+            EXDSchema's `latest` branch.
+
+            This is only the fallback used when fetching from EXDSchema at
+            runtime fails; it doesn't affect the normal fetch-per-game-version
+            path in `saintcoinach.ex.definition`.
+          branch: update-definitions-snapshot
+          delete-branch: true
+          add-paths: saintcoinach/ex/definitions/sheets.json
