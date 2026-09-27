@@ -36,7 +36,9 @@ def _resolve_sqpack(path: str) -> str:
             f"Could not locate a 'sqpack' directory under '{path}'. "
             "Pass the game install directory or the sqpack directory itself."
         )
-    return found
+    # Normalized so a trailing separator (e.g. a shell-supplied
+    # ".../game/sqpack/") doesn't make a later os.path.dirname() a no-op.
+    return os.path.normpath(found)
 
 
 class GameData:
@@ -69,10 +71,7 @@ class GameData:
         # (as this used to) silently returns None for the latter, since
         # ffxivgame.ver isn't inside the sqpack directory itself.
         candidates = [
-            # normpath first: a trailing separator (e.g. a shell-supplied
-            # ".../game/sqpack/") would otherwise make dirname() a no-op
-            # instead of stepping up to the real parent directory.
-            os.path.join(os.path.dirname(os.path.normpath(self.sqpack_directory)), "ffxivgame.ver"),
+            os.path.join(os.path.dirname(self.sqpack_directory), "ffxivgame.ver"),
             os.path.join(self.game_directory, "game", "ffxivgame.ver"),
             os.path.join(self.game_directory, "ffxivgame.ver"),
         ]
