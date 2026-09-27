@@ -2,17 +2,18 @@
 
 A Python equivalent of the subset of ``SaintCoinach.Cmd`` that the data-export
 workflow relies on: UI icon export (``ui``/``uihd``), single image export
-(``image``), raw file export (``raw``) and sheet CSV export (``rawexd``).
+(``image``), raw file export (``raw``) and sheet CSV export, both raw
+(``rawexd``, index-based columns) and named (``exd``).
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import os
 import sys
 
 from . import GameData, Language
+from . import export
 
 # Localisation sub-folders tried for each icon, mirroring UiCommand.
 _UI_VERSIONS = ["", "/en", "/ja", "/fr", "/de", "/hq", "/chs"]
@@ -92,40 +93,34 @@ def _cmd_raw(game: GameData, args) -> None:
 
 
 def _cmd_rawexd(game: GameData, args) -> None:
+    _cmd_export_csv(game, args, named=False)
+
+
+def _cmd_exd(game: GameData, args) -> None:
+    _cmd_export_csv(game, args, named=True)
+
+
+def _cmd_export_csv(game: GameData, args, *, named: bool) -> None:
     names = args.sheets or sorted(game.game_data.available_sheets)
     root = _output_root(game, args.out)
     for name in names:
         try:
-            _export_sheet_csv(game, root, name)
+            _export_sheet_csv(game, root, name, named=named)
             print(f"Exported {name}")
         except Exception as exc:  # noqa: BLE001
             print(f"{name}: {exc}", file=sys.stderr)
 
 
-def _export_sheet_csv(game: GameData, root: str, name: str) -> None:
-    from .ex.sheet import Variant2Row
-
+def _export_sheet_csv(game: GameData, root: str, name: str, *, named: bool) -> None:
     sheet = game.game_data.get_sheet(game.game_data.fix_name(name))
     header = sheet.header
+    column_headers = export.sheet_column_headers(header, named=named)
+    type_row = None if named else [c.value_type for c in header.columns]
+
     dest = os.path.join(root, "exd", name + ".csv")
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-
     with open(dest, "w", newline="", encoding="utf-8") as fh:
-        writer = csv.writer(fh)
-        writer.writerow(["key"] + [str(c.index) for c in header.columns])
-        writer.writerow([""] + [c.value_type for c in header.columns])
-        for row in sheet.rows():
-            if isinstance(row, Variant2Row):
-                for sub in row.sub_rows():
-                    writer.writerow([sub.full_key] + [_fmt(v) for v in sub.column_values()])
-            else:
-                writer.writerow([row.key] + [_fmt(v) for v in row.column_values()])
-
-
-def _fmt(value) -> str:
-    if value is None:
-        return ""
-    return str(value)
+        export.write_csv(fh, column_headers, export.sheet_rows(sheet), type_row=type_row)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -164,9 +159,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_raw.add_argument("path", help="SqPack path of the file to export.")
     p_raw.set_defaults(func=_cmd_raw)
 
-    p_exd = sub.add_parser("rawexd", help="Export sheets as CSV (raw, index-based columns).")
+    p_rawexd = sub.add_parser("rawexd", help="Export sheets as CSV (raw, index-based columns).")
+    p_rawexd.add_argument("sheets", nargs="*", help="Sheet names; omit to export all.")
+    p_rawexd.set_defaults(func=_cmd_rawexd)
+
+    p_exd = sub.add_parser(
+        "exd",
+        help="Export sheets as CSV with named columns (skips sheets with no column-name definition).",
+    )
     p_exd.add_argument("sheets", nargs="*", help="Sheet names; omit to export all.")
-    p_exd.set_defaults(func=_cmd_rawexd)
+    p_exd.set_defaults(func=_cmd_exd)
 
     return parser
 

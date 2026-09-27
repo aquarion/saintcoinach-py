@@ -31,12 +31,12 @@ Column *names* — sourced from [EXDSchema](https://github.com/xivdev/EXDSchema)
 the community successor to the original's `SaintCoinach.History.zip` — are
 loaded via `saintcoinach.ex.load_definitions(game_version)` and, where a
 sheet has a matching definition, usable directly on rows: `row["Name"]`
-alongside the original's index-based `row[3]`. A sheet with no definition
-available, or one whose column count doesn't match its real `*.exh` header
-(e.g. a cached definition for the wrong game patch), only supports index
-access — never a name silently mapped to the wrong column. The CLI's sheet
-export (`rawexd`) is still index-only; named CSV export is tracked
-separately.
+alongside the original's index-based `row[3]`, and via the CLI's `exd`
+export (`rawexd` remains index-only). A sheet with no definition available,
+or one whose column count doesn't match its real `*.exh` header (e.g. a
+cached definition for the wrong game patch), only supports index access —
+never a name silently mapped to the wrong column; `exd` skips such a sheet
+(logging why) rather than exporting it with the wrong header row.
 
 `load_definitions` resolves the schema matching the given game version by
 fetching the corresponding branch from EXDSchema (cached under the platform
@@ -87,6 +87,10 @@ saintcoinach "/path/to/game" raw exd/root.exl
 # Sheets as CSV (index-based columns)
 saintcoinach "/path/to/game" rawexd Item Action
 saintcoinach "/path/to/game" rawexd        # all sheets
+
+# Sheets as CSV with named columns (skips sheets with no column-name
+# definition available, e.g. an unrecognised game version)
+saintcoinach "/path/to/game" exd Item Action
 
 # Options
 saintcoinach "/path/to/game" -o out_dir -l ja rawexd Item
