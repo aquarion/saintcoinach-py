@@ -48,6 +48,15 @@ def test_game_version_from_sqpack_directory_itself(tmp_path):
     assert game_data.game_version == _VERSION
 
 
+def test_game_version_from_sqpack_directory_with_trailing_separator(tmp_path):
+    # os.path.dirname() on a path with a trailing separator is a no-op
+    # instead of stepping up to the parent -- must be normalized first.
+    root = _make_install(tmp_path)
+    sqpack_dir_with_slash = os.path.join(root, "game", "sqpack") + os.sep
+    game_data = _game_data_for(sqpack_dir_with_slash)
+    assert game_data.game_version == _VERSION
+
+
 def test_game_version_none_when_missing(tmp_path):
     root = tmp_path / "install"
     (root / "game" / "sqpack" / "ffxiv").mkdir(parents=True)

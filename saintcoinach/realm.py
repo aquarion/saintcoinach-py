@@ -69,7 +69,10 @@ class GameData:
         # (as this used to) silently returns None for the latter, since
         # ffxivgame.ver isn't inside the sqpack directory itself.
         candidates = [
-            os.path.join(os.path.dirname(self.sqpack_directory), "ffxivgame.ver"),
+            # normpath first: a trailing separator (e.g. a shell-supplied
+            # ".../game/sqpack/") would otherwise make dirname() a no-op
+            # instead of stepping up to the real parent directory.
+            os.path.join(os.path.dirname(os.path.normpath(self.sqpack_directory)), "ffxivgame.ver"),
             os.path.join(self.game_directory, "game", "ffxivgame.ver"),
             os.path.join(self.game_directory, "ffxivgame.ver"),
         ]
