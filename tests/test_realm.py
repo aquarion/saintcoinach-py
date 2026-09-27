@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import os
 import sys
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import saintcoinach.realm as realm  # noqa: E402
 from saintcoinach.realm import GameData, _resolve_sqpack  # noqa: E402
 
 _VERSION = "2026.09.01.0000.0000"
@@ -62,3 +64,18 @@ def test_game_version_none_when_missing(tmp_path):
     (root / "game" / "sqpack" / "ffxiv").mkdir(parents=True)
     game_data = _game_data_for(str(root))
     assert game_data.game_version is None
+
+
+def test_game_data_init_passes_resolved_game_version_to_excollection(tmp_path):
+    # Runs the real GameData.__init__ (unlike the tests above, which bypass
+    # it) to guard against a regression to ExCollection(self.packs) with no
+    # game_version -- that would leave every test above passing while named
+    # lookup silently fell back to resolving against "latest" instead of
+    # the installed game's actual version.
+    root = _make_install(tmp_path)
+    with patch.object(realm, "ExCollection") as mock_ex_collection:
+        GameData(root)
+
+    mock_ex_collection.assert_called_once()
+    _, kwargs = mock_ex_collection.call_args
+    assert kwargs.get("game_version") == _VERSION
