@@ -28,11 +28,15 @@ This port targets the **data + CLI export** workflow. It intentionally does
 / `Godbert`).
 
 Column *names* — sourced from [EXDSchema](https://github.com/xivdev/EXDSchema),
-the community successor to the original's `SaintCoinach.History.zip` — can be
-loaded via `saintcoinach.ex.load_definitions(game_version)`, but are not yet
-wired into row/sheet access. Sheet export is therefore still by **column
-index** (equivalent to the original's `rawexd`), not named columns; that's
-tracked separately.
+the community successor to the original's `SaintCoinach.History.zip` — are
+loaded via `saintcoinach.ex.load_definitions(game_version)` and, where a
+sheet has a matching definition, usable directly on rows: `row["Name"]`
+alongside the original's index-based `row[3]`. A sheet with no definition
+available, or one whose column count doesn't match its real `*.exh` header
+(e.g. a cached definition for the wrong game patch), only supports index
+access — never a name silently mapped to the wrong column. The CLI's sheet
+export (`rawexd`) is still index-only; named CSV export is tracked
+separately.
 
 `load_definitions` resolves the schema matching the given game version by
 fetching the corresponding branch from EXDSchema (cached under the platform
@@ -109,6 +113,9 @@ with GameData("/path/to/FINAL FANTASY XIV Online", Language.ENGLISH) as game:
     print(len(sheet), "rows")
     row = sheet[1601]
     print([row[i] for i in range(sheet.header.column_count)])
+
+    # Named column access, where a matching definition is available
+    print(row["Name"])
 ```
 
 ## Tests

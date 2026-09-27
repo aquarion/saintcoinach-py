@@ -3,9 +3,10 @@
 Port of ``SaintCoinach.Ex.DataSheet``, ``PartialDataSheet``, ``MultiSheet`` and
 the variant 1/2 row types.  EX data is big-endian.
 
-Columns are exposed by index only. Column names are now loadable via
-``saintcoinach.ex.definition``, but they are not yet wired into row access
-here -- this module still mirrors the original ``rawexd`` export.
+Columns can be read by index (``row[3]``, matching the original's
+``rawexd``) or, when the sheet's header has a matching column-name
+definition available (see ``saintcoinach.ex.definition``), by name
+(``row["Name"]``).
 """
 
 from __future__ import annotations
@@ -19,6 +20,10 @@ from .language import Language
 __all__ = ["DataSheet", "MultiSheet", "PartialDataSheet", "DataRow", "SubRow"]
 
 
+def _column_index(header: Header, key: int | str) -> int:
+    return key if isinstance(key, int) else header.get_column_index(key)
+
+
 class DataRow:
     """A variant 1 row: a flat record of columns."""
 
@@ -29,8 +34,8 @@ class DataRow:
         self.key = key
         self.offset = entry_offset + self.METADATA_LENGTH
 
-    def __getitem__(self, column_index: int):
-        column = self.sheet.header.get_column(column_index)
+    def __getitem__(self, key: int | str):
+        column = self.sheet.header.get_column(_column_index(self.sheet.header, key))
         return column.read(self.sheet.get_buffer(), self)
 
     def column_values(self) -> list:
@@ -51,8 +56,8 @@ class SubRow:
     def full_key(self) -> str:
         return f"{self.parent_key}.{self.key}"
 
-    def __getitem__(self, column_index: int):
-        column = self.sheet.header.get_column(column_index)
+    def __getitem__(self, key: int | str):
+        column = self.sheet.header.get_column(_column_index(self.sheet.header, key))
         return column.read(self.sheet.get_buffer(), self)
 
     def column_values(self) -> list:

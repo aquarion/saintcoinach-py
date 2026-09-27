@@ -20,6 +20,8 @@ class Header:
         self.collection = collection
         self.name = name
         self.file = file
+        self._column_names: dict[str, int] | None = None
+        self._column_names_resolved = False
 
         buffer = file.get_data()
         if len(buffer) < _MINIMUM_LENGTH:
@@ -79,3 +81,46 @@ class Header:
     def range_contains(self, data_range: tuple[int, int], row: int) -> bool:
         start, length = data_range
         return start <= row < start + length
+
+    def _ensure_column_names(self) -> dict[str, int] | None:
+        # Resolved lazily, on first use, via self.collection.definitions --
+        # not in __init__, so a plain index-based read never triggers it.
+        if not self._column_names_resolved:
+            definition = self.collection.definitions.get(self.name)
+            if definition is not None and len(definition.columns) == self.column_count:
+                self._column_names = {n: i for i, n in enumerate(definition.columns)}
+            self._column_names_resolved = True
+        return self._column_names
+
+    @property
+    def has_column_names(self) -> bool:
+        """Whether this sheet has a column-name definition matching its
+        actual column count (a mismatched definition -- e.g. from a stale
+        cached fetch for the wrong game version -- disables name access
+        for this sheet rather than mapping names to the wrong columns)."""
+        return self._ensure_column_names() is not None
+
+    @property
+    def column_names(self) -> tuple[str, ...] | None:
+        """Column names in column-index order, or ``None`` if unavailable."""
+        names = self._ensure_column_names()
+        if names is None:
+            return None
+        ordered_names: list[str] = [""] * self.column_count
+        for name, index in names.items():
+            ordered_names[index] = name
+        return tuple(ordered_names)
+
+    def get_column_index(self, name: str) -> int:
+        """The column index for a column name.
+
+        Raises ``KeyError`` if this sheet has no matching definition at
+        all, or if it has one but doesn't contain ``name``.
+        """
+        names = self._ensure_column_names()
+        if names is None:
+            raise KeyError(f"sheet {self.name!r} has no column-name definition available")
+        try:
+            return names[name]
+        except KeyError:
+            raise KeyError(f"sheet {self.name!r} has no column named {name!r}") from None
