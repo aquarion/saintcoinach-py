@@ -40,7 +40,7 @@ jobs:
         run: python scripts/vendor_definitions.py /tmp/exdschema
 
       - name: Open a PR if the snapshot changed
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: "Update bundled sheet definitions snapshot"
           title: "Update bundled sheet definitions snapshot"
